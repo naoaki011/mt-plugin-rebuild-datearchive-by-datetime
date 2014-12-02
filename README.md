@@ -1,4 +1,4 @@
-RebuildCategory by ColumnValue
+RebuildDateArchive by DateTime
 ==========================================
 
 &lt;MTRebuildDateArchiveByDateTime archive_type="Monthly" datetime="YYYYmmddHHMMSS"&gt;
