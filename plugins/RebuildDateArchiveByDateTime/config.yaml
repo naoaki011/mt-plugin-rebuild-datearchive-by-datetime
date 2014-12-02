@@ -1,0 +1,73 @@
+name: RebuildDateArchiveByDateTime
+id:   RebuildDateArchiveByDateTime
+key:  rebuilddatearchivebydatetime
+version: 0.1
+description: Rebuild date archive by date time value.
+tags:
+    function:
+        RebuildDateArchiveByDateTime: >
+                sub {
+                        my ( $ctx, $args, $cond ) = @_;
+                        my $app = MT->instance;
+                        my $blog_id = $args->{ blog_id };
+                        my $blog;
+                        if ( ref( $app ) =~ /^MT::App/ ) {
+                            return if ( $app->mode =~ /preview/ );
+                            if (! $blog_id ) {
+                                $blog_id = $app->blog->id
+                                  or return '';
+                                $blog = $app->blog;
+                            }
+                        } else {
+                            my $current_blog = $ctx->stash( 'blog' );
+                            if (! $blog_id ) {
+                                $blog_id = $current_blog->id
+                                  or return'';
+                            }
+                            $blog = $current_blog;
+                        }
+                        if ( $blog_id eq 'all' ) {
+                            $blog_id = undef;
+                        } else {
+                            return '' unless $blog_id;
+                            $blog = MT->model( 'blog' )->load( $blog_id );
+                        }
+
+                        my $at = $args->{ archive_type } || 'Monthly';
+
+                        # calc starttime
+                        use MT::Util qw( offset_time_list start_end_week );
+                        my @tl = offset_time_list( time, $blog );
+                        my $ts = sprintf '%04d%02d%02d%02d%02d%02d', $tl[5]+1900, $tl[4]+1, @tl[3,2,1,0];
+                        $ts = substr( $ts,0 ,6 ) . '01000000' if ($at eq 'Monthly');
+                        $ts = substr( $ts,0 ,8 ) . '000000' if ($at eq 'Daily');
+                        $ts = substr( $ts,0 ,4 ) . '0101000000' if ($at eq 'Yearly');
+                        if ($at eq 'Weekly') {
+                            my( $start, $end ) = start_end_week( $ts );
+                            $ts = $start;
+                        }
+                        my $datetime = $args->{ datetime } || $ts;
+
+                        #MT->log( $ts );
+                        #MT->log( $datetime );
+
+                        return '' unless ((($at eq 'Monthly')||($at eq 'Weekly')||($at eq 'Daily')||($at eq 'Yearly'))&&($datetime));
+                        my $template_id = $args->{ template_id } || '';
+                        my $templatemap_id = $args->{ templatemap_id } || '';
+                        my $params;
+                        $params->{ blog_id } = $blog_id if $blog_id;
+                        $params->{ archive_type } = $at;
+                        $params->{ startdate } = $datetime;
+                        $params->{ template_id } = $template_id if $template_id;
+                        $params->{ templatemap_id } = $templatemap_id if $templatemap_id;
+                        my @fis = mt->model( 'fileinfo' )->load( $params );
+                        if ( @fis ) {
+                            require MT::WeblogPublisher;
+                            my $pub = MT::WeblogPublisher->new;
+                            for my $fi ( @fis ) {
+                                #MT->log( 'Path: ' . $fi->file_path );
+                                my $res = $pub->rebuild_from_fileinfo( $fi );
+                            }
+                        }
+                        return '';
+                    }
